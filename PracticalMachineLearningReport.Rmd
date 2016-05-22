@@ -1,0 +1,92 @@
+---
+title: "Practical Machine Learning Report"
+author: "WANG Xin"
+date: "2016年5月22日"
+output: html_document
+---
+
+### Backgroud
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+### Load packages
+
+```{r}
+setwd("~/git/PracticalMachineLearning")
+
+library(caret)
+library(randomForest)
+library(e1071)
+```
+
+### Read Dataset
+
+```{r}
+training <- read.csv("pml-training.csv", na.strings=c("#DIV/0!", " ", "", "NA"))
+testing <- read.csv("pml-testing.csv", na.strings=c("#DIV/0!", " ", "", "NA"))
+```
+
+### Preprecessing
+
+Drop columns (covariables) with almost all NAs
+
+```{r}
+NAs <- apply(training, 2, function(x) { sum(is.na(x)) })
+trainingCleaned <- training[, which(NAs < 1000)]
+testingCleaned <- testing[, which(NAs < 1000)]
+```
+
+Drop varibles like: X, user_name, timestamps and new_window that obviously not good predictors.
+
+```{r}
+trainingCleaned <- subset(trainingCleaned, select=-c(X, user_name, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, new_window))
+testingCleaned <- subset(testingCleaned, select=-c(X, user_name, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, new_window))
+```
+
+Check near zero variance predictors
+
+```{r}
+nearZeroVar(trainingCleaned)
+```
+
+So all varibles could be taken into account.
+
+### Model creation
+
+Consider the big number of non-linear varibles, I fisrtly use random forrest model to see the performance.
+
+Split the cleaned training dataset into traning part and validation part.
+
+```{r}
+trainSub <- createDataPartition(trainingCleaned$classe, p=0.8, list=F)
+trainingCleaned_train <- trainingCleaned[trainSub,]
+trainingCleaned_valid <- trainingCleaned[-trainSub,]
+```
+
+Train the model:
+```{r}
+fit <- train(classe ~ ., 
+             data=trainingCleaned_train, 
+             method="rf", 
+             trControl=trainControl(method="cv", number=4), verbose=F)
+
+fit$finalModel
+```
+
+### Validation and error
+
+```{r}
+predicted <- predict(fit, trainingCleaned_valid)
+accuracy <- sum(predicted == trainingCleaned_valid$classe) / length(predicted)
+
+# percentage of error:
+(1-accuracy) * 100
+```
+
+So the performance of the model is very good.
+
+The prediction for the test dataset is:
+
+```{r}
+predict(fit, testingCleaned)
+```
